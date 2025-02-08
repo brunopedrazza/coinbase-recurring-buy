@@ -28,10 +28,5 @@ public class CoinbaseRecurringBuyTimer(
                 logger.LogError(ex, "Error placing order for {Symbol}", allocation.Symbol);
             }
         }
-    
-        if (myTimer.ScheduleStatus is not null)
-        {
-            logger.LogInformation("Next timer schedule at: {Next}", myTimer.ScheduleStatus.Next);
-        }
     }
 }
