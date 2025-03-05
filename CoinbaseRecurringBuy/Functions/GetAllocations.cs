@@ -19,17 +19,9 @@ public class GetAllocations(
     private readonly IConfiguration _configuration = configuration;
 
     [Function("GetAllocations")]
-    public async Task<HttpResponseData> Run([HttpTrigger(AuthorizationLevel.Function, "get", "options")] HttpRequestData req)
+    public async Task<HttpResponseData> Run([HttpTrigger(AuthorizationLevel.Function, "get")] HttpRequestData req)
     {
         _logger.LogInformation("GetAllocations HTTP trigger function processed a request");
-
-        // Handle preflight OPTIONS request
-        if (req.Method.Equals("OPTIONS", StringComparison.OrdinalIgnoreCase))
-        {
-            var corsResponse = req.CreateResponse(HttpStatusCode.OK);
-            AddCorsHeaders(corsResponse);
-            return corsResponse;
-        }
 
         try
         {
@@ -37,10 +29,7 @@ public class GetAllocations(
             if (!req.Headers.Contains("Authorization"))
             {
                 _logger.LogWarning("Authorization header is missing");
-                var unauthorizedResponse = req.CreateResponse(HttpStatusCode.Unauthorized);
-                AddCorsHeaders(unauthorizedResponse);
-                await unauthorizedResponse.WriteStringAsync("Unauthorized: Missing authorization header");
-                return unauthorizedResponse;
+                return await MountHttpResponse(req, HttpStatusCode.Unauthorized, "Unauthorized: Missing authorization header");
             }
 
             // Validate and authorize the request
@@ -49,34 +38,37 @@ public class GetAllocations(
             
             if (!isAuthenticated)
             {
-                var unauthorizedResponse = req.CreateResponse(HttpStatusCode.Unauthorized);
-                AddCorsHeaders(unauthorizedResponse);
-                await unauthorizedResponse.WriteStringAsync("Unauthorized: Invalid token");
-                return unauthorizedResponse;
+                return await MountHttpResponse(req, HttpStatusCode.Unauthorized, "Unauthorized: Invalid token");
             }
             
             if (!isAuthorized)
             {
-                var forbiddenResponse = req.CreateResponse(HttpStatusCode.Forbidden);
-                AddCorsHeaders(forbiddenResponse);
-                await forbiddenResponse.WriteStringAsync("Forbidden: You are not authorized to access this resource");
-                return forbiddenResponse;
+                return await MountHttpResponse(req, HttpStatusCode.Forbidden, "Forbidden: You are not authorized to access this resource");
             }
 
             var allocations = await _allocationService.GetAllAllocationsAsync();
-            var response = req.CreateResponse(HttpStatusCode.OK);
-            AddCorsHeaders(response);
-            await response.WriteAsJsonAsync(allocations);
-            return response;
+            return await MountHttpResponse(req, HttpStatusCode.OK, allocations);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving allocations: {Message}", ex.Message);
-            var response = req.CreateResponse(HttpStatusCode.InternalServerError);
-            AddCorsHeaders(response);
-            await response.WriteStringAsync($"Error retrieving allocations: {ex.Message}");
-            return response;
+            return await MountHttpResponse(req, HttpStatusCode.InternalServerError, $"Error retrieving allocations: {ex.Message}");
         }
+    }
+
+    private async Task<HttpResponseData> MountHttpResponse(HttpRequestData req, HttpStatusCode statusCode, object data)
+    {
+        var response = req.CreateResponse(statusCode);
+        AddCorsHeaders(response);
+        if (data is string stringData)
+        {   
+            await response.WriteStringAsync(stringData);
+        }
+        else
+        {
+            await response.WriteAsJsonAsync(data);
+        }
+        return response;
     }
 
     private void AddCorsHeaders(HttpResponseData response)
