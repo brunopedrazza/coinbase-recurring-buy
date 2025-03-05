@@ -2,7 +2,7 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using CoinbaseRecurringBuy.Services;
 
-namespace CoinbaseRecurringBuy;
+namespace CoinbaseRecurringBuy.Functions;
 
 public class CoinbaseRecurringBuyTimer(
     ILogger<CoinbaseRecurringBuyTimer> logger,

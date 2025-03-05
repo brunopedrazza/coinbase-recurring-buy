@@ -4,13 +4,14 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using CoinbaseRecurringBuy.Models;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.OpenSsl;
 using Microsoft.Extensions.Logging;
+using CoinbaseRecurringBuy.Models.Configuration;
+using CoinbaseRecurringBuy.Models.Coinbase;
 
 namespace CoinbaseRecurringBuy.Services;
 

@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace CoinbaseRecurringBuy.Models;
+namespace CoinbaseRecurringBuy.Models.Coinbase;
 
 public class OrderConfiguration
 {

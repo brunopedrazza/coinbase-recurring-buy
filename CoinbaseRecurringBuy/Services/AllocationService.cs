@@ -1,8 +1,9 @@
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
-using CoinbaseRecurringBuy.Models;
 using Microsoft.Extensions.Logging;
+using CoinbaseRecurringBuy.Models.Configuration;
+using CoinbaseRecurringBuy.Models.Allocations;
 
 namespace CoinbaseRecurringBuy.Services;
 
@@ -21,16 +22,17 @@ public class AllocationService(
         try
         {
             var response = await blobClient.DownloadContentAsync();
-            var allocations = JsonSerializer.Deserialize<List<CryptoAllocation>>(response.Value.Content, new JsonSerializerOptions
+            var options = new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
-            });
-            return allocations?.Where(a => a.IsActive) ?? [];
+            };
+            
+            var allocations = JsonSerializer.Deserialize<List<CryptoAllocation>>(response.Value.Content, options);
+            return allocations?.Where(a => a.IsActive) ?? Enumerable.Empty<CryptoAllocation>();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            logger.LogError(ex, "Error reading allocations from blob storage");
-            return [];
+            return Enumerable.Empty<CryptoAllocation>();
         }
     }
 
@@ -38,10 +40,35 @@ public class AllocationService(
     {
         var blobClient = _containerClient.GetBlobClient(_blobName);
         
-        using var stream = new MemoryStream();
-        await JsonSerializer.SerializeAsync(stream, allocations);
-        stream.Position = 0;
+        var options = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
         
+        var json = JsonSerializer.Serialize(allocations, options);
+        
+        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json));
         await blobClient.UploadAsync(stream, overwrite: true);
+    }
+
+    public async Task<IEnumerable<CryptoAllocation>> GetAllAllocationsAsync()
+    {
+        var blobClient = _containerClient.GetBlobClient(_blobName);
+        
+        try
+        {
+            var response = await blobClient.DownloadContentAsync();
+            var allocations = JsonSerializer.Deserialize<List<CryptoAllocation>>(response.Value.Content, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+            return allocations ?? [];
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error reading all allocations from blob storage");
+            return [];
+        }
     }
 } 
