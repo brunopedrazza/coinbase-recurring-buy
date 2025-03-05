@@ -92,3 +92,6 @@ env.yml
 
 # Temporary files
 *~
+
+# Azurite
+.azurite/

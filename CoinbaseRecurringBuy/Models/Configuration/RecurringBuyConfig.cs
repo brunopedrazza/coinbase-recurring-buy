@@ -1,4 +1,4 @@
-namespace CoinbaseRecurringBuy.Models;
+namespace CoinbaseRecurringBuy.Models.Configuration;
 
 public class RecurringBuyConfig
 {
