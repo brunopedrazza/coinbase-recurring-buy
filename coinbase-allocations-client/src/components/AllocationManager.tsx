@@ -19,6 +19,7 @@ import {
   Tooltip,
   Paper,
   CircularProgress,
+  InputAdornment,
 } from '@mui/material';
 import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Refresh as RefreshIcon } from '@mui/icons-material';
 import { useMsal } from '@azure/msal-react';
@@ -342,61 +343,56 @@ const AllocationDialog: React.FC<AllocationDialogProps> = ({
     usdcAmount: 0,
     isActive: true,
   });
-  const [inputValue, setInputValue] = useState<string>('');
+  
+  // Add a state to track the input value as a string
+  const [usdcInputValue, setUsdcInputValue] = useState<string>('');
 
   useEffect(() => {
     if (allocation) {
       setFormData(allocation);
-      setInputValue(formatUsdcInputValue(allocation.usdcAmount));
+      // Format the existing value for display
+      setUsdcInputValue(allocation.usdcAmount.toFixed(2));
     } else {
       setFormData({
         symbol: '',
         usdcAmount: 0,
         isActive: true,
       });
-      setInputValue('');
+      setUsdcInputValue('');
     }
   }, [allocation]);
 
-  // Format USDC amount for display in the input field
-  const formatUsdcInputValue = (amount: number): string => {
-    return (amount * 100).toFixed(0);
-  };
-
-  // Convert input value to actual USDC amount
-  const getUsdcAmountFromInput = (value: string): number => {
-    const numericValue = value ? parseInt(value, 10) : 0;
-    return numericValue / 100;
-  };
-
-  // Handle USDC input change
+  // Implement the classic decimal input handler
   const handleUsdcInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+    // Only allow digits
+    const value = e.target.value.replace(/[^\d]/g, '');
     
-    // Only allow numeric input
-    if (value === '' || /^\d+$/.test(value)) {
-      setInputValue(value);
+    if (value === '') {
+      setUsdcInputValue('');
       setFormData({
         ...formData,
-        usdcAmount: getUsdcAmountFromInput(value)
+        usdcAmount: 0
       });
+      return;
     }
+    
+    // Convert to cents (e.g., "123" becomes 1.23)
+    const cents = parseInt(value, 10);
+    const dollars = cents / 100;
+    
+    // Format with 2 decimal places
+    const formattedValue = dollars.toFixed(2);
+    
+    setUsdcInputValue(formattedValue);
+    setFormData({
+      ...formData,
+      usdcAmount: dollars
+    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData as Allocation);
-  };
-
-  // Format the display value for the USDC amount
-  const getFormattedUsdcDisplay = (): string => {
-    if (inputValue === '') return '0.00';
-    
-    const numericValue = parseInt(inputValue, 10);
-    const dollars = Math.floor(numericValue / 100);
-    const cents = numericValue % 100;
-    
-    return `${dollars}.${cents.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -417,21 +413,24 @@ const AllocationDialog: React.FC<AllocationDialogProps> = ({
               fullWidth
               helperText="Trading symbol (e.g., BTC-USD, ETH-USD)"
             />
+            
             <TextField
               label="USDC Amount"
-              type="text"
-              value={inputValue}
+              value={usdcInputValue}
               onChange={handleUsdcInputChange}
               required
               fullWidth
-              helperText={`Amount of USDC to spend on each purchase: $${getFormattedUsdcDisplay()}`}
-              InputProps={{
-                inputProps: { 
-                  pattern: "\\d*",
-                  inputMode: "numeric"
-                }
+              placeholder="0.00"
+              type="text"
+              inputProps={{ 
+                inputMode: "numeric",
               }}
+              InputProps={{
+                startAdornment: <InputAdornment position="start">$</InputAdornment>,
+              }}
+              helperText="Enter amount in dollars"
             />
+            
             <Box display="flex" alignItems="center">
               <Switch
                 checked={formData.isActive ?? true}

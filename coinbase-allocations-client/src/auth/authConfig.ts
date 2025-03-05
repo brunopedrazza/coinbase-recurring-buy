@@ -41,4 +41,5 @@ export const b2cPolicies = {
 export const apiConfig = {
   allocationsFetchEndpoint: `${import.meta.env.VITE_FUNCTION_APP_URL}/api/GetAllocations`,
   allocationsUpdateEndpoint: `${import.meta.env.VITE_FUNCTION_APP_URL}/api/UpdateAllocations`,
+  functionKey: import.meta.env.VITE_FUNCTION_KEY as string,
 }; 

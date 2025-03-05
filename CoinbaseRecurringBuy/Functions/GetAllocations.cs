@@ -3,20 +3,23 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using CoinbaseRecurringBuy.Services;
+using Microsoft.Extensions.Configuration;
 
 namespace CoinbaseRecurringBuy.Functions;
 
 public class GetAllocations(
     ILogger<GetAllocations> logger,
     AllocationService allocationService,
-    JwtValidationService jwtValidationService)
+    JwtValidationService jwtValidationService,
+    IConfiguration configuration)
 {
     private readonly ILogger<GetAllocations> _logger = logger;
     private readonly AllocationService _allocationService = allocationService;
     private readonly JwtValidationService _jwtValidationService = jwtValidationService;
+    private readonly IConfiguration _configuration = configuration;
 
     [Function("GetAllocations")]
-    public async Task<HttpResponseData> Run([HttpTrigger(AuthorizationLevel.Anonymous, "get", "options")] HttpRequestData req)
+    public async Task<HttpResponseData> Run([HttpTrigger(AuthorizationLevel.Function, "get", "options")] HttpRequestData req)
     {
         _logger.LogInformation("GetAllocations HTTP trigger function processed a request");
 
@@ -76,11 +79,12 @@ public class GetAllocations(
         }
     }
 
-    private static void AddCorsHeaders(HttpResponseData response)
+    private void AddCorsHeaders(HttpResponseData response)
     {
-        response.Headers.Add("Access-Control-Allow-Origin", "http://localhost:3000");
+        var allowedOrigin = _configuration.GetValue<string>("Host:AllowedOrigin") ?? "http://localhost:3000";
+        response.Headers.Add("Access-Control-Allow-Origin", allowedOrigin);
         response.Headers.Add("Access-Control-Allow-Methods", "GET, OPTIONS");
-        response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Authorization, x-functions-key");
         response.Headers.Add("Access-Control-Allow-Credentials", "true");
     }
 } 

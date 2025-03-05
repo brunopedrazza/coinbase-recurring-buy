@@ -5,20 +5,23 @@ using Microsoft.Extensions.Logging;
 using CoinbaseRecurringBuy.Services;
 using System.Text.Json;
 using CoinbaseRecurringBuy.Models.Allocations;
+using Microsoft.Extensions.Configuration;
 
 namespace CoinbaseRecurringBuy.Functions;
 
 public class UpdateAllocations(
     ILogger<UpdateAllocations> logger,
     AllocationService allocationService,
-    JwtValidationService jwtValidationService)
+    JwtValidationService jwtValidationService,
+    IConfiguration configuration)
 {
     private readonly ILogger<UpdateAllocations> _logger = logger;
     private readonly AllocationService _allocationService = allocationService;
     private readonly JwtValidationService _jwtValidationService = jwtValidationService;
+    private readonly IConfiguration _configuration = configuration;
 
     [Function("UpdateAllocations")]
-    public async Task<HttpResponseData> Run([HttpTrigger(AuthorizationLevel.Anonymous, "post", "options")] HttpRequestData req)
+    public async Task<HttpResponseData> Run([HttpTrigger(AuthorizationLevel.Function, "post", "options")] HttpRequestData req)
     {
         _logger.LogInformation("UpdateAllocations HTTP trigger function processed a request");
 
@@ -90,11 +93,12 @@ public class UpdateAllocations(
         }
     }
 
-    private static void AddCorsHeaders(HttpResponseData response)
+    private void AddCorsHeaders(HttpResponseData response)
     {
-        response.Headers.Add("Access-Control-Allow-Origin", "http://localhost:3000");
-        response.Headers.Add("Access-Control-Allow-Methods", "POST, OPTIONS");
-        response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        var allowedOrigin = _configuration.GetValue<string>("Host:AllowedOrigin") ?? "http://localhost:3000";
+        response.Headers.Add("Access-Control-Allow-Origin", allowedOrigin);
+        response.Headers.Add("Access-Control-Allow-Methods", "GET, OPTIONS");
+        response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Authorization, x-functions-key");
         response.Headers.Add("Access-Control-Allow-Credentials", "true");
     }
 } 

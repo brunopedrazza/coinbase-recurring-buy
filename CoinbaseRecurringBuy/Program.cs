@@ -16,14 +16,15 @@ var host = new HostBuilder()
         services.AddSingleton<AllocationService>();
         services.AddSingleton<CoinbaseProService>();
         services.AddSingleton<JwtValidationService>();
+        
+        // Get allowed origins from configuration
+        var corsOrigins = context.Configuration.GetValue<string>("Host:AllowedOrigin") ?? "http://localhost:3000";
+            
         services.AddCors(options =>
         {
             options.AddPolicy("AllowStaticWebApp", policy =>
             {
-                policy.WithOrigins(
-                        "https://your-production-app-url.com",
-                        "http://localhost:3000" // For local development
-                    )
+                policy.WithOrigins(corsOrigins)
                     .AllowAnyMethod()
                     .AllowAnyHeader()
                     .AllowCredentials();
