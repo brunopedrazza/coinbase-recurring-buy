@@ -72,8 +72,10 @@ export const Header: React.FC<HeaderProps> = ({ toggleColorMode, mode }) => {
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <IconButton 
             onClick={toggleColorMode} 
-            color="inherit"
-            sx={{ mr: 2 }}
+            sx={{ 
+              mr: 2,
+              color: theme.palette.mode === 'dark' ? 'white' : 'rgba(0, 0, 0, 0.7)'
+            }}
           >
             {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
           </IconButton>
@@ -92,11 +94,11 @@ export const Header: React.FC<HeaderProps> = ({ toggleColorMode, mode }) => {
             
             <IconButton
               onClick={handleMenu}
-              color="inherit"
               size="small"
               sx={{ 
                 border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`,
                 p: 0.5,
+                color: theme.palette.mode === 'dark' ? 'white' : 'rgba(0, 0, 0, 0.7)'
               }}
             >
               {accounts[0]?.name ? (

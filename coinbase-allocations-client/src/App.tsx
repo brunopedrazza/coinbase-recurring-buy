@@ -83,8 +83,12 @@ function SignInButton() {
       >
         <IconButton 
           onClick={colorMode.toggleColorMode} 
-          color="inherit"
-          sx={{ position: 'absolute', top: 16, right: 16 }}
+          sx={{ 
+            position: 'absolute', 
+            top: 16, 
+            right: 16,
+            color: theme.palette.mode === 'dark' ? 'white' : 'rgba(0, 0, 0, 0.7)'
+          }}
         >
           {theme.palette.mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
         </IconButton>
