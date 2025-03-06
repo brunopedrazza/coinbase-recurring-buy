@@ -3,6 +3,9 @@ name: Deploy Azure Function App
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'CoinbaseRecurringBuy/**'
+      - '.github/workflows/azure-function-app-deploy.yml'
   workflow_dispatch:
 
 env:
