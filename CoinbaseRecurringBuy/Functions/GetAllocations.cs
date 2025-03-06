@@ -73,8 +73,11 @@ public class GetAllocations(
 
     private void AddCorsHeaders(HttpResponseData response)
     {
+        // When using credentials, we must specify the exact origin, not a wildcard
+        // Since we don't have access to the request here, we'll use the configured origin
         var allowedOrigin = _configuration.GetValue<string>("Host:AllowedOrigin") ?? "http://localhost:3000";
         response.Headers.Add("Access-Control-Allow-Origin", allowedOrigin);
+        
         response.Headers.Add("Access-Control-Allow-Methods", "GET, OPTIONS");
         response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Authorization, x-functions-key");
         response.Headers.Add("Access-Control-Allow-Credentials", "true");
