@@ -3,20 +3,17 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using CoinbaseRecurringBuy.Services;
-using Microsoft.Extensions.Configuration;
 
 namespace CoinbaseRecurringBuy.Functions;
 
 public class GetAllocations(
     ILogger<GetAllocations> logger,
     AllocationService allocationService,
-    JwtValidationService jwtValidationService,
-    IConfiguration configuration)
+    JwtValidationService jwtValidationService)
 {
     private readonly ILogger<GetAllocations> _logger = logger;
     private readonly AllocationService _allocationService = allocationService;
     private readonly JwtValidationService _jwtValidationService = jwtValidationService;
-    private readonly IConfiguration _configuration = configuration;
 
     [Function("GetAllocations")]
     public async Task<HttpResponseData> Run([HttpTrigger(AuthorizationLevel.Function, "get")] HttpRequestData req)
@@ -59,7 +56,6 @@ public class GetAllocations(
     private async Task<HttpResponseData> MountHttpResponse(HttpRequestData req, HttpStatusCode statusCode, object data)
     {
         var response = req.CreateResponse(statusCode);
-        AddCorsHeaders(response);
         if (data is string stringData)
         {   
             await response.WriteStringAsync(stringData);
@@ -69,17 +65,5 @@ public class GetAllocations(
             await response.WriteAsJsonAsync(data);
         }
         return response;
-    }
-
-    private void AddCorsHeaders(HttpResponseData response)
-    {
-        // When using credentials, we must specify the exact origin, not a wildcard
-        // Since we don't have access to the request here, we'll use the configured origin
-        var allowedOrigin = _configuration.GetValue<string>("Host:AllowedOrigin") ?? "http://localhost:3000";
-        response.Headers.Add("Access-Control-Allow-Origin", allowedOrigin);
-        
-        response.Headers.Add("Access-Control-Allow-Methods", "GET, OPTIONS");
-        response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Authorization, x-functions-key");
-        response.Headers.Add("Access-Control-Allow-Credentials", "true");
     }
 } 
