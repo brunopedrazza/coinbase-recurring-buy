@@ -40,6 +40,12 @@ jobs:
           api_location: ${{ env.API_LOCATION }}
           output_location: ${{ env.OUTPUT_LOCATION }}
           app_build_command: "npm run build"
+        env:
+          VITE_CLIENT_ID: ${{ secrets.VITE_CLIENT_ID }}
+          VITE_B2C_TENANT_NAME: ${{ secrets.VITE_B2C_TENANT_NAME }}
+          VITE_API_SCOPE: ${{ secrets.VITE_API_SCOPE }}
+          VITE_FUNCTION_APP_URL: ${{ secrets.VITE_FUNCTION_APP_URL }}
+          VITE_FUNCTION_KEY: ${{ secrets.VITE_FUNCTION_KEY }}
           
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
