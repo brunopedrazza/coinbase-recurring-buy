@@ -43,8 +43,8 @@ public class GetAllocations(
                 return await MountHttpResponse(req, HttpStatusCode.Forbidden, "Forbidden: You are not authorized to access this resource");
             }
 
-            var allocations = await _allocationService.GetAllAllocationsAsync();
-            return await MountHttpResponse(req, HttpStatusCode.OK, allocations);
+            var settings = await _allocationService.GetSettingsAsync();
+            return await MountHttpResponse(req, HttpStatusCode.OK, settings);
         }
         catch (Exception ex)
         {

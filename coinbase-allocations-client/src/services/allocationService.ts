@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { AllocationResponse, AllocationUpdateRequest } from '../types/allocation';
+import { AllocationResponse, AllocationUpdateRequest, Allocation } from '../types/allocation';
 import { apiConfig } from '../auth/authConfig';
 
 const getAllocations = async (accessToken: string): Promise<AllocationResponse> => {
@@ -9,7 +9,19 @@ const getAllocations = async (accessToken: string): Promise<AllocationResponse> 
       'x-functions-key': apiConfig.functionKey,
     },
   });
-  return response.data;
+  const data = response.data;
+
+  if (Array.isArray(data)) {
+    return {
+      allocations: data as Allocation[],
+      minimumUsdcBalance: 0,
+    };
+  }
+
+  return {
+    allocations: data.allocations ?? [],
+    minimumUsdcBalance: data.minimumUsdcBalance ?? 0,
+  };
 };
 
 const updateAllocations = async (accessToken: string, allocations: AllocationUpdateRequest): Promise<void> => {

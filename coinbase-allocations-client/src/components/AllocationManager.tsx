@@ -34,6 +34,10 @@ export const AllocationManager: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [minimumUsdcBalance, setMinimumUsdcBalance] = useState(0);
+  const [draftMinimumUsdcBalance, setDraftMinimumUsdcBalance] = useState(0);
+  const [minimumBalanceInputValue, setMinimumBalanceInputValue] = useState('');
+  const [isSavingMinimumBalance, setIsSavingMinimumBalance] = useState(false);
   const theme = useTheme();
 
   const fetchAllocations = async () => {
@@ -45,7 +49,11 @@ export const AllocationManager: React.FC = () => {
         account: accounts[0],
       });
       const response = await allocationService.getAllocations(token.accessToken);
-      setAllocations(response);
+      const minimumBalance = response.minimumUsdcBalance ?? 0;
+      setAllocations(response.allocations);
+      setMinimumUsdcBalance(minimumBalance);
+      setDraftMinimumUsdcBalance(minimumBalance);
+      setMinimumBalanceInputValue(minimumBalance.toFixed(2));
     } catch (err) {
       setError('Failed to fetch allocations. Please try again.');
       console.error(err);
@@ -62,6 +70,11 @@ export const AllocationManager: React.FC = () => {
     fetchAllocations();
   };
 
+  const getSettingsPayload = (updatedAllocations: Allocation[], updatedMinimumBalance: number = minimumUsdcBalance) => ({
+    allocations: updatedAllocations,
+    minimumUsdcBalance: updatedMinimumBalance,
+  });
+
   const handleSave = async (allocation: Allocation) => {
     try {
       const token = await instance.acquireTokenSilent({
@@ -73,7 +86,10 @@ export const AllocationManager: React.FC = () => {
         ? allocations.map((a) => (a.symbol === allocation.symbol ? allocation : a))
         : [...allocations, allocation];
 
-      await allocationService.updateAllocations(token.accessToken, updatedAllocations);
+      await allocationService.updateAllocations(
+        token.accessToken,
+        getSettingsPayload(updatedAllocations)
+      );
 
       setAllocations(updatedAllocations);
       setIsDialogOpen(false);
@@ -92,7 +108,10 @@ export const AllocationManager: React.FC = () => {
       });
 
       const updatedAllocations = allocations.filter((a) => a.symbol !== symbol);
-      await allocationService.updateAllocations(token.accessToken, updatedAllocations);
+      await allocationService.updateAllocations(
+        token.accessToken,
+        getSettingsPayload(updatedAllocations)
+      );
 
       setAllocations(updatedAllocations);
     } catch (err) {
@@ -112,7 +131,10 @@ export const AllocationManager: React.FC = () => {
         a.symbol === symbol ? { ...a, isActive } : a
       );
 
-      await allocationService.updateAllocations(token.accessToken, updatedAllocations);
+      await allocationService.updateAllocations(
+        token.accessToken,
+        getSettingsPayload(updatedAllocations)
+      );
 
       setAllocations(updatedAllocations);
     } catch (err) {
@@ -121,9 +143,54 @@ export const AllocationManager: React.FC = () => {
     }
   };
 
+  const handleMinimumBalanceInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digitsOnly = e.target.value.replace(/[^\d]/g, '');
+
+    if (digitsOnly === '') {
+      setMinimumBalanceInputValue('');
+      setDraftMinimumUsdcBalance(0);
+      return;
+    }
+
+    const cents = parseInt(digitsOnly, 10);
+    const dollars = cents / 100;
+    const formattedValue = dollars.toFixed(2);
+
+    setMinimumBalanceInputValue(formattedValue);
+    setDraftMinimumUsdcBalance(dollars);
+  };
+
+  const handleMinimumBalanceSave = async () => {
+    if (draftMinimumUsdcBalance === minimumUsdcBalance) {
+      return;
+    }
+
+    try {
+      setIsSavingMinimumBalance(true);
+      const token = await instance.acquireTokenSilent({
+        ...loginRequest,
+        account: accounts[0],
+      });
+
+      await allocationService.updateAllocations(
+        token.accessToken,
+        getSettingsPayload(allocations, draftMinimumUsdcBalance)
+      );
+
+      setMinimumUsdcBalance(draftMinimumUsdcBalance);
+      setMinimumBalanceInputValue(draftMinimumUsdcBalance.toFixed(2));
+    } catch (err) {
+      setError('Failed to update minimum balance. Please try again.');
+      console.error(err);
+    } finally {
+      setIsSavingMinimumBalance(false);
+    }
+  };
+
   const totalActiveAmount = allocations
     .filter(a => a.isActive)
     .reduce((sum, a) => sum + a.usdcAmount, 0);
+  const isMinimumBalanceDirty = draftMinimumUsdcBalance !== minimumUsdcBalance;
 
   return (
     <Box sx={{ width: '100%', px: { xs: 2, sm: 3, md: 4 }, py: 4 }}>
@@ -188,6 +255,42 @@ export const AllocationManager: React.FC = () => {
                   Add Allocation
                 </Button>
               </Box>
+            </Box>
+
+            <Box>
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                Minimum USDC Balance
+              </Typography>
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={2}
+                alignItems={{ xs: 'stretch', sm: 'center' }}
+              >
+                <TextField
+                  label="Reserve Amount"
+                  value={minimumBalanceInputValue}
+                  onChange={handleMinimumBalanceInputChange}
+                  placeholder="0.00"
+                  type="text"
+                  inputProps={{ inputMode: 'numeric' }}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                  }}
+                  helperText="Amount of USDC to keep untouched"
+                  fullWidth
+                />
+                <Button
+                  variant="contained"
+                  onClick={handleMinimumBalanceSave}
+                  disabled={!isMinimumBalanceDirty || isSavingMinimumBalance}
+                  sx={{ minWidth: { sm: 200 } }}
+                >
+                  {isSavingMinimumBalance ? 'Saving...' : 'Save Minimum'}
+                </Button>
+              </Stack>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                Recurring buys only run when the remaining balance stays at or above this amount.
+              </Typography>
             </Box>
 
             {error && (

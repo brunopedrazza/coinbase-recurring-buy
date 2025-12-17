@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http.Headers;
@@ -75,6 +76,80 @@ public class CoinbaseProService(
         }
 
         logger.LogInformation("Order response: {Content}", responseContent);
+    }
+
+    public async Task<GetAccountsResponse> GetBalancesAsync(int? limit = null, string? cursor = null)
+    {
+        var requestPath = "/accounts";
+        var queryParams = new List<string>();
+        
+        if (limit.HasValue)
+        {
+            queryParams.Add($"limit={limit}");
+        }
+
+        if (!string.IsNullOrEmpty(cursor))
+        {
+            queryParams.Add($"cursor={cursor}");
+        }
+        
+        if (queryParams.Count > 0)
+        {
+            requestPath += "?" + string.Join("&", queryParams);
+        }
+        
+        var jwt = GenerateToken(_config.CoinbaseApiName, _config.CoinbaseApiPrivateKey, $"GET {ApiUrl}{requestPath}");
+        
+        httpClient.DefaultRequestHeaders.Clear();
+        httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
+
+        var response = await httpClient.GetAsync($"https://{ApiUrl}{requestPath}");
+        var responseContent = await response.Content.ReadAsStringAsync();
+        
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException($"Failed to get account balances: {responseContent}");
+        }
+
+        var accountsResponse = JsonSerializer.Deserialize<GetAccountsResponse>(responseContent);
+        if (accountsResponse == null)
+        {
+            throw new InvalidOperationException("Failed to deserialize account balances response");
+        }
+
+        logger.LogInformation("Retrieved {AccountCount} accounts successfully", accountsResponse.Accounts.Count);
+        
+        return accountsResponse;
+    }
+
+    public async Task<decimal> GetAvailableBalanceAsync(string currency)
+    {
+        var accountsResponse = await GetBalancesAsync();
+        foreach (var account in accountsResponse.Accounts)
+        {
+            if (!string.Equals(account.Currency, currency, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (account.AvailableBalance?.Value == null)
+            {
+                logger.LogWarning("No available balance found for currency {Currency}", currency);
+                return 0m;
+            }
+
+            if (!decimal.TryParse(account.AvailableBalance.Value, NumberStyles.Number | NumberStyles.AllowExponent, CultureInfo.InvariantCulture, out var balance))
+            {
+                logger.LogWarning("Unable to parse available balance '{BalanceValue}' for currency {Currency}", account.AvailableBalance.Value, currency);
+                return 0m;
+            }
+
+            return balance;
+        }
+
+        logger.LogWarning("No account found for currency {Currency}", currency);
+        return 0m;
     }
 
     private static string GenerateToken(string name, string privateKeyPem, string uri)

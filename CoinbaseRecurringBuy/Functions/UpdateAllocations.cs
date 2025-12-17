@@ -46,14 +46,44 @@ public class UpdateAllocations(
             }
 
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            var allocations = JsonSerializer.Deserialize<List<CryptoAllocation>>(requestBody);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            };
+            RecurringBuySettings? settings;
 
-            if (allocations == null)
+            if (string.IsNullOrWhiteSpace(requestBody))
             {
                 return await MountHttpResponse(req, HttpStatusCode.BadRequest, "Invalid allocation data");
             }
 
-            await _allocationService.UpdateAllocationsAsync(allocations);
+            var trimmed = requestBody.TrimStart();
+            if (trimmed.StartsWith("["))
+            {
+                var allocations = JsonSerializer.Deserialize<List<CryptoAllocation>>(requestBody, jsonOptions);
+                if (allocations == null)
+                {
+                    return await MountHttpResponse(req, HttpStatusCode.BadRequest, "Invalid allocation data");
+                }
+
+                settings = new RecurringBuySettings
+                {
+                    Allocations = allocations
+                };
+            }
+            else
+            {
+                settings = JsonSerializer.Deserialize<RecurringBuySettings>(requestBody, jsonOptions);
+            }
+
+            if (settings == null)
+            {
+                return await MountHttpResponse(req, HttpStatusCode.BadRequest, "Invalid allocation data");
+            }
+
+            settings.Allocations ??= [];
+
+            await _allocationService.UpdateSettingsAsync(settings);
             
             return await MountHttpResponse(req, HttpStatusCode.OK, new { success = true });
         }

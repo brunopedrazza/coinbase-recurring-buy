@@ -17,8 +17,14 @@ public class AllocationService(
 
     public async Task<IEnumerable<CryptoAllocation>> GetAllocationsAsync()
     {
+        var settings = await GetSettingsAsync();
+        return settings.Allocations.Where(a => a.IsActive);
+    }
+
+    public async Task<RecurringBuySettings> GetSettingsAsync()
+    {
         var blobClient = _containerClient.GetBlobClient(_blobName);
-        
+
         try
         {
             var response = await blobClient.DownloadContentAsync();
@@ -27,16 +33,40 @@ public class AllocationService(
                 PropertyNameCaseInsensitive = true
             };
             
-            var allocations = JsonSerializer.Deserialize<List<CryptoAllocation>>(response.Value.Content, options);
-            return allocations?.Where(a => a.IsActive) ?? Enumerable.Empty<CryptoAllocation>();
+            var jsonContent = response.Value.Content.ToString();
+            if (string.IsNullOrWhiteSpace(jsonContent))
+            {
+                return new RecurringBuySettings();
+            }
+
+            var trimmed = jsonContent.TrimStart();
+            RecurringBuySettings? settings;
+
+            if (trimmed.StartsWith("["))
+            {
+                var allocations = JsonSerializer.Deserialize<List<CryptoAllocation>>(jsonContent, options) ?? [];
+                settings = new RecurringBuySettings
+                {
+                    Allocations = allocations
+                };
+            }
+            else
+            {
+                settings = JsonSerializer.Deserialize<RecurringBuySettings>(jsonContent, options);
+            }
+
+            settings ??= new RecurringBuySettings();
+            settings.Allocations ??= [];
+            return settings;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            return Enumerable.Empty<CryptoAllocation>();
+            logger.LogError(ex, "Error reading recurring buy settings from blob storage");
+            return new RecurringBuySettings();
         }
     }
 
-    public async Task UpdateAllocationsAsync(IEnumerable<CryptoAllocation> allocations)
+    public async Task UpdateSettingsAsync(RecurringBuySettings settings)
     {
         var blobClient = _containerClient.GetBlobClient(_blobName);
         
@@ -46,29 +76,9 @@ public class AllocationService(
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
         
-        var json = JsonSerializer.Serialize(allocations, options);
+        var json = JsonSerializer.Serialize(settings, options);
         
         using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json));
         await blobClient.UploadAsync(stream, overwrite: true);
-    }
-
-    public async Task<IEnumerable<CryptoAllocation>> GetAllAllocationsAsync()
-    {
-        var blobClient = _containerClient.GetBlobClient(_blobName);
-        
-        try
-        {
-            var response = await blobClient.DownloadContentAsync();
-            var allocations = JsonSerializer.Deserialize<List<CryptoAllocation>>(response.Value.Content, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
-            return allocations ?? [];
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Error reading all allocations from blob storage");
-            return [];
-        }
     }
 } 

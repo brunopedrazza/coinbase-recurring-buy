@@ -4,6 +4,11 @@ export interface Allocation {
   isActive: boolean;
 }
 
-export interface AllocationResponse extends Array<Allocation> {}
+export interface RecurringBuySettings {
+  allocations: Allocation[];
+  minimumUsdcBalance: number;
+}
 
-export interface AllocationUpdateRequest extends Array<Allocation> {} 
+export type AllocationResponse = RecurringBuySettings;
+
+export type AllocationUpdateRequest = RecurringBuySettings;
