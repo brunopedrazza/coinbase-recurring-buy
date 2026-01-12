@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Linq;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Org.BouncyCastle.Crypto;
@@ -26,7 +27,7 @@ public class CoinbaseProService(
     public async Task PlaceMarketOrderAsync(string symbol, decimal usdcAmount)
     {
         const string requestPath = "/orders";
-        
+
         var order = new CoinbaseOrder
         {
             ClientOrderId = Guid.NewGuid().ToString(),
@@ -43,16 +44,12 @@ public class CoinbaseProService(
 
         var jsonContent = JsonSerializer.Serialize(order);
         var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
-        
-        var jwt = GenerateToken(_config.CoinbaseApiName, _config.CoinbaseApiPrivateKey, $"POST {ApiUrl}{requestPath}");
-        
-        httpClient.DefaultRequestHeaders.Clear();
-        httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
+
+        PrepareAuthenticatedClient("POST", requestPath);
 
         var response = await httpClient.PostAsync($"https://{ApiUrl}{requestPath}", content);
         var responseContent = await response.Content.ReadAsStringAsync();
-        
+
         if (!response.IsSuccessStatusCode)
         {
             throw new HttpRequestException($"Failed to place order: {responseContent}");
@@ -75,6 +72,47 @@ public class CoinbaseProService(
         }
 
         logger.LogInformation("Order response: {Content}", responseContent);
+    }
+
+    public async Task<decimal> GetUsdcBalanceAsync()
+    {
+        const string requestPath = "/accounts";
+        PrepareAuthenticatedClient("GET", requestPath);
+
+        var response = await httpClient.GetAsync($"https://{ApiUrl}{requestPath}");
+        var responseContent = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException($"Failed to retrieve Coinbase accounts: {responseContent}");
+        }
+
+        var accounts = JsonSerializer.Deserialize<CoinbaseAccountsResponse>(responseContent);
+        var usdcAccount = accounts?.Accounts?
+            .FirstOrDefault(a => string.Equals(a.Currency, "USDC", StringComparison.OrdinalIgnoreCase));
+
+        if (usdcAccount?.AvailableBalance?.Value == null)
+        {
+            logger.LogWarning("USDC balance was not present in the Coinbase accounts response");
+            return 0m;
+        }
+
+        if (!decimal.TryParse(usdcAccount.AvailableBalance.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var balance))
+        {
+            logger.LogWarning("Unable to parse Coinbase USDC balance value: {Value}", usdcAccount.AvailableBalance.Value);
+            return 0m;
+        }
+
+        return balance;
+    }
+
+    private void PrepareAuthenticatedClient(string httpMethod, string requestPath)
+    {
+        var jwt = GenerateToken(_config.CoinbaseApiName, _config.CoinbaseApiPrivateKey, $"{httpMethod} {ApiUrl}{requestPath}");
+
+        httpClient.DefaultRequestHeaders.Clear();
+        httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
     }
 
     private static string GenerateToken(string name, string privateKeyPem, string uri)
@@ -155,4 +193,4 @@ public class CoinbaseProService(
 
         return ECDsa.Create(ecdsaParams);
     }
-} 
+}
