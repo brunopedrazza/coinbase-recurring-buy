@@ -4,6 +4,8 @@ export interface Allocation {
   isActive: boolean;
 }
 
-export interface AllocationResponse extends Array<Allocation> {}
-
-export interface AllocationUpdateRequest extends Array<Allocation> {} 
+export interface AllocationSettings {
+  minimumUsdcBalance: number;
+  allocations: Allocation[];
+  currentUsdcBalance?: number | null;
+}
