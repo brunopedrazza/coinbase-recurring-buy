@@ -20,6 +20,7 @@ import {
   Paper,
   CircularProgress,
   InputAdornment,
+  FormHelperText,
 } from '@mui/material';
 import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Refresh as RefreshIcon } from '@mui/icons-material';
 import { useMsal } from '@azure/msal-react';
@@ -30,10 +31,14 @@ import { loginRequest } from '../auth/authConfig';
 export const AllocationManager: React.FC = () => {
   const { instance, accounts } = useMsal();
   const [allocations, setAllocations] = useState<Allocation[]>([]);
+  const [minimumUsdcBalance, setMinimumUsdcBalance] = useState<number>(0);
+  const [minimumBalanceInput, setMinimumBalanceInput] = useState<string>('0.00');
+  const [currentUsdcBalance, setCurrentUsdcBalance] = useState<number | null>(null);
   const [editingAllocation, setEditingAllocation] = useState<Allocation | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSavingMinimum, setIsSavingMinimum] = useState(false);
   const theme = useTheme();
 
   const fetchAllocations = async () => {
@@ -45,7 +50,11 @@ export const AllocationManager: React.FC = () => {
         account: accounts[0],
       });
       const response = await allocationService.getAllocations(token.accessToken);
-      setAllocations(response);
+      const minimumBalance = response.minimumUsdcBalance ?? 0;
+      setMinimumUsdcBalance(minimumBalance);
+      setMinimumBalanceInput(Number.isFinite(minimumBalance) ? minimumBalance.toFixed(2) : '0.00');
+      setAllocations(response.allocations ?? []);
+      setCurrentUsdcBalance(response.currentUsdcBalance ?? null);
     } catch (err) {
       setError('Failed to fetch allocations. Please try again.');
       console.error(err);
@@ -73,7 +82,10 @@ export const AllocationManager: React.FC = () => {
         ? allocations.map((a) => (a.symbol === allocation.symbol ? allocation : a))
         : [...allocations, allocation];
 
-      await allocationService.updateAllocations(token.accessToken, updatedAllocations);
+      await allocationService.updateAllocations(token.accessToken, {
+        allocations: updatedAllocations,
+        minimumUsdcBalance,
+      });
 
       setAllocations(updatedAllocations);
       setIsDialogOpen(false);
@@ -92,7 +104,10 @@ export const AllocationManager: React.FC = () => {
       });
 
       const updatedAllocations = allocations.filter((a) => a.symbol !== symbol);
-      await allocationService.updateAllocations(token.accessToken, updatedAllocations);
+      await allocationService.updateAllocations(token.accessToken, {
+        allocations: updatedAllocations,
+        minimumUsdcBalance,
+      });
 
       setAllocations(updatedAllocations);
     } catch (err) {
@@ -112,12 +127,51 @@ export const AllocationManager: React.FC = () => {
         a.symbol === symbol ? { ...a, isActive } : a
       );
 
-      await allocationService.updateAllocations(token.accessToken, updatedAllocations);
+      await allocationService.updateAllocations(token.accessToken, {
+        allocations: updatedAllocations,
+        minimumUsdcBalance,
+      });
 
       setAllocations(updatedAllocations);
     } catch (err) {
       setError('Failed to update allocation status. Please try again.');
       console.error(err);
+    }
+  };
+
+  const handleMinimumBalanceInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/[^\d]/g, '');
+
+    if (value === '') {
+      setMinimumBalanceInput('');
+      setMinimumUsdcBalance(0);
+      return;
+    }
+
+    const cents = parseInt(value, 10);
+    const dollars = cents / 100;
+    setMinimumBalanceInput(dollars.toFixed(2));
+    setMinimumUsdcBalance(dollars);
+  };
+
+  const handleSaveMinimumBalance = async () => {
+    try {
+      setError(null);
+      setIsSavingMinimum(true);
+      const token = await instance.acquireTokenSilent({
+        ...loginRequest,
+        account: accounts[0],
+      });
+
+      await allocationService.updateAllocations(token.accessToken, {
+        allocations,
+        minimumUsdcBalance,
+      });
+    } catch (err) {
+      setError('Failed to save minimum USDC balance. Please try again.');
+      console.error(err);
+    } finally {
+      setIsSavingMinimum(false);
     }
   };
 
@@ -160,6 +214,9 @@ export const AllocationManager: React.FC = () => {
                 <Typography variant="subtitle1" color="text.secondary">
                   Total Active Amount: ${totalActiveAmount.toFixed(2)} USDC
                 </Typography>
+                <Typography variant="subtitle1" color="text.secondary">
+                  Current USDC Balance: {currentUsdcBalance !== null ? `$${currentUsdcBalance.toFixed(2)}` : '—'}
+                </Typography>
               </Box>
               <Box display="flex" gap={2}>
                 <Tooltip title="Refresh allocations">
@@ -189,6 +246,43 @@ export const AllocationManager: React.FC = () => {
                 </Button>
               </Box>
             </Box>
+
+            <Stack spacing={1} sx={{ width: '100%' }}>
+              <Box 
+                display="flex" 
+                flexDirection={{ xs: 'column', sm: 'row' }} 
+                gap={2}
+                alignItems={{ xs: 'stretch', sm: 'center' }}
+              >
+                <TextField
+                  label="Minimum USDC Balance to Keep"
+                  value={minimumBalanceInput}
+                  onChange={handleMinimumBalanceInputChange}
+                  fullWidth
+                  type="text"
+                  placeholder="0.00"
+                  inputProps={{
+                    inputMode: 'numeric',
+                  }}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                  }}
+                />
+                <Button
+                  variant="contained"
+                  color="secondary"
+                  onClick={handleSaveMinimumBalance}
+                  disabled={isSavingMinimum || isLoading}
+                  startIcon={isSavingMinimum ? <CircularProgress size={20} /> : null}
+                  sx={{ height: 56 }}
+                >
+                  {isSavingMinimum ? 'Saving...' : 'Save'}
+                </Button>
+              </Box>
+              <FormHelperText sx={{ ml: { xs: 0, sm: 1.75 } }}>
+                Orders will be skipped if they drop the balance below this amount
+              </FormHelperText>
+            </Stack>
 
             {error && (
               <Alert severity="error" onClose={() => setError(null)}>
