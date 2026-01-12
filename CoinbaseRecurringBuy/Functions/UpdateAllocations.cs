@@ -46,14 +46,18 @@ public class UpdateAllocations(
             }
 
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            var allocations = JsonSerializer.Deserialize<List<CryptoAllocation>>(requestBody);
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            };
+            var allocationSettings = JsonSerializer.Deserialize<AllocationSettings>(requestBody, options);
 
-            if (allocations == null)
+            if (allocationSettings?.Allocations == null)
             {
                 return await MountHttpResponse(req, HttpStatusCode.BadRequest, "Invalid allocation data");
             }
 
-            await _allocationService.UpdateAllocationsAsync(allocations);
+            await _allocationService.UpdateAllocationsAsync(allocationSettings);
             
             return await MountHttpResponse(req, HttpStatusCode.OK, new { success = true });
         }
