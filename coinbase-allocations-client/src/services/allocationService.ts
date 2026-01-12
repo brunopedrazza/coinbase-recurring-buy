@@ -1,8 +1,8 @@
 import axios from 'axios';
-import { AllocationResponse, AllocationUpdateRequest } from '../types/allocation';
+import { AllocationSettings } from '../types/allocation';
 import { apiConfig } from '../auth/authConfig';
 
-const getAllocations = async (accessToken: string): Promise<AllocationResponse> => {
+const getAllocations = async (accessToken: string): Promise<AllocationSettings> => {
   const response = await axios.get(apiConfig.allocationsFetchEndpoint, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -12,8 +12,8 @@ const getAllocations = async (accessToken: string): Promise<AllocationResponse> 
   return response.data;
 };
 
-const updateAllocations = async (accessToken: string, allocations: AllocationUpdateRequest): Promise<void> => {
-  await axios.post(apiConfig.allocationsUpdateEndpoint, allocations, {
+const updateAllocations = async (accessToken: string, settings: AllocationSettings): Promise<void> => {
+  await axios.post(apiConfig.allocationsUpdateEndpoint, settings, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',

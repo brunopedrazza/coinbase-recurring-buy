@@ -15,28 +15,52 @@ public class AllocationService(
     private readonly BlobContainerClient _containerClient = blobServiceClient.GetBlobContainerClient(config.Value.AllocationsBlobContainer);
     private readonly string _blobName = config.Value.AllocationsBlobName;
 
-    public async Task<IEnumerable<CryptoAllocation>> GetAllocationsAsync()
+    public async Task<AllocationSettings> GetAllocationSettingsAsync()
     {
         var blobClient = _containerClient.GetBlobClient(_blobName);
-        
+
         try
         {
             var response = await blobClient.DownloadContentAsync();
+            var json = response.Value.Content.ToString();
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return new AllocationSettings();
+            }
+
             var options = new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             };
-            
-            var allocations = JsonSerializer.Deserialize<List<CryptoAllocation>>(response.Value.Content, options);
-            return allocations?.Where(a => a.IsActive) ?? Enumerable.Empty<CryptoAllocation>();
+
+            var trimmed = json.TrimStart();
+            if (trimmed.StartsWith("["))
+            {
+                var legacyAllocations = JsonSerializer.Deserialize<List<CryptoAllocation>>(json, options) ?? new List<CryptoAllocation>();
+                return new AllocationSettings
+                {
+                    Allocations = legacyAllocations
+                };
+            }
+
+            var settings = JsonSerializer.Deserialize<AllocationSettings>(json, options) ?? new AllocationSettings();
+            settings.Allocations ??= new List<CryptoAllocation>();
+            return settings;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            return Enumerable.Empty<CryptoAllocation>();
+            logger.LogError(ex, "Error retrieving allocation settings from blob storage");
+            return new AllocationSettings();
         }
     }
 
-    public async Task UpdateAllocationsAsync(IEnumerable<CryptoAllocation> allocations)
+    public async Task<IEnumerable<CryptoAllocation>> GetAllocationsAsync()
+    {
+        var settings = await GetAllocationSettingsAsync();
+        return settings.Allocations.Where(a => a.IsActive);
+    }
+
+    public async Task UpdateAllocationsAsync(AllocationSettings settings)
     {
         var blobClient = _containerClient.GetBlobClient(_blobName);
         
@@ -45,30 +69,20 @@ public class AllocationService(
             WriteIndented = true,
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
+
+        var safeSettings = new AllocationSettings
+        {
+            MinimumUsdcBalance = settings.MinimumUsdcBalance < 0 ? 0 : settings.MinimumUsdcBalance,
+            Allocations = settings.Allocations ?? new List<CryptoAllocation>()
+        };
         
-        var json = JsonSerializer.Serialize(allocations, options);
+        var json = JsonSerializer.Serialize(safeSettings, options);
         
         using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json));
         await blobClient.UploadAsync(stream, overwrite: true);
     }
 
-    public async Task<IEnumerable<CryptoAllocation>> GetAllAllocationsAsync()
-    {
-        var blobClient = _containerClient.GetBlobClient(_blobName);
-        
-        try
-        {
-            var response = await blobClient.DownloadContentAsync();
-            var allocations = JsonSerializer.Deserialize<List<CryptoAllocation>>(response.Value.Content, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
-            return allocations ?? [];
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Error reading all allocations from blob storage");
-            return [];
-        }
-    }
-} 
+    [Obsolete("Use GetAllocationSettingsAsync to retrieve both allocations and configuration.")]
+    public async Task<IEnumerable<CryptoAllocation>> GetAllAllocationsAsync() =>
+        (await GetAllocationSettingsAsync()).Allocations;
+}
