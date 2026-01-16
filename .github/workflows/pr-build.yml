@@ -1,0 +1,53 @@
+name: Build Frontend and Backend on PR
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: coinbase-allocations-client
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: coinbase-allocations-client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_CLIENT_ID: "ci-client-id"
+          VITE_B2C_TENANT_NAME: "ci-tenant"
+          VITE_API_SCOPE: "api://ci-scope"
+          VITE_FUNCTION_APP_URL: "https://example.invalid"
+          VITE_FUNCTION_KEY: "ci-function-key"
+
+  backend-build:
+    name: Backend Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore "CoinbaseRecurringBuy/CoinbaseRecurringBuy.csproj"
+
+      - name: Build
+        run: dotnet build "CoinbaseRecurringBuy/CoinbaseRecurringBuy.csproj" --configuration Release --no-restore
