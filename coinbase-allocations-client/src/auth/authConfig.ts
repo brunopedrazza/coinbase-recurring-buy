@@ -1,4 +1,4 @@
-import { Configuration, PopupRequest } from "@azure/msal-browser";
+import { Configuration, RedirectRequest } from "@azure/msal-browser";
 
 // Azure B2C configuration
 export const msalConfig: Configuration = {
@@ -16,7 +16,7 @@ export const msalConfig: Configuration = {
 };
 
 // Add scopes here for ID token to be used at Microsoft identity platform endpoints.
-export const loginRequest: PopupRequest = {
+export const loginRequest: RedirectRequest = {
   scopes: ["openid", "profile", import.meta.env.VITE_API_SCOPE as string],
 };
 

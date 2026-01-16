@@ -1,5 +1,5 @@
 import { MsalProvider, AuthenticatedTemplate, UnauthenticatedTemplate, useMsal } from "@azure/msal-react";
-import { PublicClientApplication, EventType, EventMessage, AuthError } from "@azure/msal-browser";
+import { PublicClientApplication, EventType, EventMessage, AuthError, AuthenticationResult } from "@azure/msal-browser";
 import { ThemeProvider, CssBaseline, Box, IconButton, useMediaQuery, useTheme, Paper, Typography, Button } from "@mui/material";
 import { Brightness4, Brightness7 } from '@mui/icons-material';
 import { AllocationManager } from "./components/AllocationManager";
@@ -24,21 +24,33 @@ if (accounts.length > 0) {
 }
 
 msalInstance.addEventCallback((event: EventMessage) => {
+  if (event.eventType === EventType.LOGIN_SUCCESS && event.payload) {
+    const payload = event.payload as AuthenticationResult;
+    if (payload.account) {
+      msalInstance.setActiveAccount(payload.account);
+    }
+
+    const claims = payload.idTokenClaims as { tfp?: string; acr?: string } | undefined;
+    const policy = claims?.tfp ?? claims?.acr;
+    if (policy?.toLowerCase() === b2cPolicies.names.passwordReset.toLowerCase()) {
+      msalInstance.loginRedirect({
+        authority: b2cPolicies.authorities.signIn.authority,
+        scopes: loginRequest.scopes
+      }).catch(err => {
+        console.error("Sign-in after password reset error:", err);
+      });
+    }
+  }
+
   if (event.eventType === EventType.LOGIN_FAILURE) {
     const error = event.error as AuthError;
     
     // Check if the error is due to the user clicking the "Forgot Password" link
     if (error && error.errorCode === "AADB2C90118") {
       // Initiate the password reset flow
-      msalInstance.loginPopup({
+      msalInstance.loginRedirect({
         authority: b2cPolicies.authorities.passwordReset.authority,
         scopes: loginRequest.scopes
-      }).then(() => {
-        // After password reset, sign the user in with the sign-in policy
-        return msalInstance.loginPopup({
-          authority: b2cPolicies.authorities.signIn.authority,
-          scopes: loginRequest.scopes
-        });
       }).catch(err => {
         console.error("Password reset error:", err);
       });
@@ -52,7 +64,7 @@ function SignInButton() {
   const theme = useTheme();
 
   const handleLogin = () => {
-    instance.loginPopup().catch(error => {
+    instance.loginRedirect(loginRequest).catch(error => {
       // This is handled by the event callback above
       console.log("Login error:", error);
     });
